@@ -14,9 +14,9 @@ from sklearn.metrics import precision_score, recall_score
 
 def main():
     st.title("Welcome to Shopee Review")
-    st.subheader("Enter the URL: ")
+    st.subheader("Masukkan URL disini: ")
     url = st.text_input(label='URL')
-    st.sidebar.title("This is the sidebar")
+    st.sidebar.title("This is sidebar")
     st.sidebar.markdown("Let’s start the classification")
 
 
