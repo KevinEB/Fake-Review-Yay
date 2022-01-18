@@ -1,129 +1,146 @@
-from numpy.core.numeric import True_
-from sklearn import metrics
-import streamlit as st
+import re
+import json
+import requests
 import pandas as pd
 import numpy as np
-from sklearn.svm import SVC
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import LabelEncoder
+import matplotlib.pyplot as plt 
+import seaborn as sns
+import pickle
+import nltk
+import csv
+
+from collections import OrderedDict
+from nltk.tokenize import RegexpTokenizer
+from collections import OrderedDict
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.linear_model import LogisticRegression,SGDClassifier
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, pairwise_distances
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import plot_confusion_matrix, plot_roc_curve, plot_precision_recall_curve
-from sklearn.metrics import precision_score, recall_score
+
 
 
 def main():
-    st.title("Welcome to Shopee Review")
-    st.subheader("Masukkan URL disini: ")
-    url = st.text_input(label='URL')
-    st.sidebar.title("This is sidebar")
-    st.sidebar.markdown("Let’s start the classification")
+    st.title("Welcome to Shopee Reviewer")
+    st.subheader("Tolong masukkan url kesini")
+
+main()
+
+# url link is used manually here as for now
+url = st.text_input("Ini Teks URL: ")
+r = re.search(r"i\.(\d+)\.(\d+)", url)
+shop_id, item_id = r[1], r[2]
 
 
-if __name__ == '__main__':
-    main()
+ratings_url = "https://shopee.co.id/api/v2/item/get_ratings?filter=0&flag=1&itemid={item_id}&limit=20&offset={offset}&shopid={shop_id}&type=0"
+offset = 0
+d = {"username": [], "userid": [], "rating": [], "comment": [], "ctime": []}
+while True:
+    data = requests.get(
+        ratings_url.format(shop_id=shop_id, item_id=item_id, offset=offset)).json()
+
+    # uncomment this to print all data:
+    # print(json.dumps(data, indent=4))
+
+    i = 1
+    for i, rating in enumerate(data["data"]["ratings"], 1):
+        d["username"].append(rating["author_username"])
+        d["userid"].append(rating["userid"])
+        d["rating"].append(rating["rating_star"])
+        d["comment"].append(rating["comment"])
+        d["ctime"].append(rating["ctime"])
+
+        print(rating["author_username"])
+        print(rating["userid"])
+        print(rating["rating_star"])
+        print(rating["comment"])
+        print(rating["ctime"])
+        print("-" * 100)
+
+    if i % 20:
+        break
+
+    offset += 20
 
 
-@st.cache(persist=True)
-def load():
-    data = pd.read_csv("train_review_only.csv")
-    label = LabelEncoder()
-    for i in data.columns:
-        data[i] = label.fit_transform(data[i])
-    return data
+df = pd.DataFrame(d)
+print(df)
+df.to_csv("data.csv", index=False)
 
+df['comment'] = df.apply(lambda row: str(row['comment']).lower(), axis=1)
 
-df = load()
+tokenizer = RegexpTokenizer(r'\w+')
+df['comment'] = df['comment'].apply(lambda x: ' '.join(word for word in tokenizer.tokenize(x)))
 
-if st.sidebar.checkbox("Display data", False):
-    st.subheader("Show Review Shopee dataset")
-    st.write(df)
+df['review_length'] = df['comment'].apply(lambda x: len(x.split()))
 
+df['date'] = pd.to_datetime(df['ctime'],unit='s').dt.date
+df['time'] = pd.to_datetime(df['ctime'],unit='s').dt.time
 
-@st.cache(persist=True)
-def split(df):
-    y = df['fakeornot']
-    x = df.drop(columns=["fakeornot"])
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.3, random_state=0)
-    return x_train, x_test, y_train, y_test
+mnr_df1 = df[['userid', 'date']].copy()
+mnr_df2 = mnr_df1.groupby(by=['date', 'userid']).size().reset_index(name='mnr')
+mnr_df2['mnr'] = mnr_df2['mnr'] / mnr_df2['mnr'].max()
+df = df.merge(mnr_df2, on=['userid', 'date'], how='inner')
 
-x_train, x_test, y_train, y_test = split(df)
+review_data = df
+res = OrderedDict()
 
+for row in review_data.iterrows():
+    if row[1].userid in res:
+        res[row[1].userid].append(row[1].comment)
+    else:
+        res [row[1].userid] = [row[1].comment]
 
-def plot_metrics(metrics_list):
-    if "Confusion Matrix" in metrics_list:
-        st.subheader("Confusion Matrix")
-        plot_confusion_matrix(model, x_test, y_test, display_labels=class_names)
-        st.pyplot()
-    if "ROC Curve" in metrics_list:
-        st.subheader("ROC Curve")
-        plot_roc_curve(model, x_test, y_test)
-        st.pyplot()
-    if "Precision-Recall Curve" in metrics_list:
-        st.subheader("Precision-Recall Curve")
-        plot_precision_recall_curve(model, x_test, y_test)
-        st.pyplot()
+individual_reviewer = [{'userid': k, 'comment': v} for k, v in res.items()]
+df2 = dict()
+df2['userid'] = pd.Series([])
+df2['Maximum Content Similarity'] = pd.Series([])
+vector = TfidfVectorizer(min_df=0)
+count = -1
+for reviewer_data in individual_reviewer:
+    count = count + 1
+    try:
+        tfidf = vector.fit_transform(reviewer_data['comment'])
+    except:
+        pass
+    cosine = 1 - pairwise_distances(tfidf, metric='cosine')
 
-class_names = ["original", "not helping"]
+    np.fill_diagonal(cosine, -np.inf)
+    max = cosine.max()
 
+    # To handle reviewier with just 1 review
+    if max == -np.inf:
+        max = 0
+    df2['userid'][count] = reviewer_data['userid']
+    df2['Maximum Content Similarity'][count] = max
 
-st.sidebar.subheader("Choose classifier")
-classifier = st.sidebar.selectbox("Classifier",
-                                  ("Support Vector Machine (SVM)", "Logistic Regression", "Random Forest"))
+df3 = pd.DataFrame(df2, columns=['userid', 'Maximum Content Similarity'])
 
-if classifier == "Support Vector Machine (SVM)":
-    st.sidebar.subheader("Hyperparameters")
-    C = st.sidebar.number_input("C (Regularization parameter)", 0.01, 10.0, step=0.01, key="C")
-    kernel = st.sidebar.radio("Kernel", ("rbf", "linear"), key="kernel")
-    gamma = st.sidebar.radio("Gamma (Kernal coefficient", ("scale", "auto"), key="gamma")
-    metrics = st.sidebar.multiselect("What metrics to plot?",
-                                     ("Confusion Matrix", "ROC Curve", "Precision-Recall Curve"))
+# left outer join on original datamatrix and cosine dataframe
+df = pd.merge(review_data, df3, on="userid", how="left")
+df.drop(index=np.where(pd.isnull(df))[0], axis=0, inplace=True)
 
-    if st.sidebar.button("Classify", key="classify"):
-        st.subheader("Support Vector Machine (SVM) results")
-        model = SVC(C=C, kernel=kernel, gamma=gamma)
-        model.fit(x_train, y_train)
-        accuracy = model.score(x_test, y_test)
-        y_pred = model.predict(x_test)
-        st.write("Accuracy: ", accuracy.round(2))
-        st.write("Precision: ", precision_score(y_test, y_pred, labels=class_names).round(2))
-        st.write("Recall: ", recall_score(y_test, y_pred, labels=class_names).round(2))
-        plot_metrics(metrics)
+with open ('logreg_pickle', 'rb') as rasengan:
+    logreg = pickle.load(rasengan)
 
-if classifier == "Logistic Regression":
-    st.sidebar.subheader("Hyperparameters")
-    C = st.sidebar.number_input("C (Regularization parameter)", 0.01, 10.0, step=0.01, key="C_LR")
-    max_iter = st.sidebar.slider("Maximum iterations", 100, 500, key="max_iter")
-    metrics = st.sidebar.multiselect("What metrics to plot?",
-                                     ("Confusion Matrix", "ROC Curve", "Precision-Recall Curve"))
+X = df[['review_length', 'mnr', 'Maximum Content Similarity', 'rating']]
 
-    if st.sidebar.button("Classify", key="classify"):
-        st.subheader("Logistic Regression Results")
-        model = LogisticRegression(C=C, max_iter=max_iter)
-        model.fit(x_train, y_train)
-        accuracy = model.score(x_test, y_test)
-        y_pred = model.predict(x_test)
+y_pred = logreg.predict(X[['review_length', 'mnr', 'Maximum Content Similarity', 'rating']])
 
-        st.write("Accuracy: ", accuracy.round(2))
-        st.write("Precision: ", precision_score(y_test, y_pred, labels=class_names).round(2))
-        st.write("Recall: ", recall_score(y_test, y_pred, labels=class_names).round(2))
-        plot_metrics(metrics)
+X['fakeornot'] = y_pred
 
-if classifier == "Random Forest":
-    st.sidebar.subheader("Hyperparameters")
-    n_estimators = st.sidebar.number_input("The number of trees in the forest", 100, 5000, step=10, key="n_estimators")
-    max_depth = st.sidebar.number_input("The maximum depth of tree", 1, 20, step=1, key="max_depth")
-    bootstrap = st.sidebar.radio("Bootstrap samples when building trees", ("True", "False"), key="bootstrap")
-    metrics = st.sidebar.multiselect("What metrics to plot?",
-                                     ("Confusion Matrix", "ROC Curve", "Precision-Recall Curve"))
+fake = X.fakeornot.str.count("fake").sum()
+original = X.fakeornot.str.count("original").sum()
 
-    if st.sidebar.button("Classify", key="classify"):
-        st.subheader("Random Forest Results")
-        model = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, bootstrap=bootstrap, n_jobs=-1)
-        model.fit(x_train, y_train)
-        accuracy = model.score(x_test, y_test)
-        y_pred = model.predict(x_test)
-        st.write("Accuracy: ", accuracy.round(2))
-        st.write("Precision: ", precision_score(y_test, y_pred, labels=class_names).round(2))
-        st.write("Recall: ", recall_score(y_test, y_pred, labels=class_names).round(2))
-        plot_metrics(metrics)
+print(fake)
+print(original)
+
+labels = ['Komentar Tidak Membantu', 'Komentar Membantu',]
+filter_opini = [fake, original]
+colors = ['orange', 'seagreen']
+explode = (0.1, 0)  # explode 1st slice
+
+fig1, ax1 = plt.subplots()
+ax1.pie(filter_opini, explode=explode, labels=labels, colors=colors,
+        autopct='%1.1f%%', shadow=True, startangle=140)
+ax1.axis('equal')
+st.pyplot(fig1)
