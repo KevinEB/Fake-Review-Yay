@@ -1,5 +1,3 @@
-pip install nltk
-
 import re
 import json
 import requests
