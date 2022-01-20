@@ -1,4 +1,4 @@
-pip3 install nltk
+pip install nltk
 
 import re
 import json
