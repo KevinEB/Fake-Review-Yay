@@ -9,6 +9,8 @@ import pickle
 import nltk
 import csv
 import streamlit as st
+import time 
+import threading
 
 from collections import OrderedDict
 from nltk.tokenize import RegexpTokenizer
@@ -26,21 +28,22 @@ def main():
 
 main()
 
+st_progress_bar = st.progress()
+
+def progress():
+    global st_progress_bar
+    for i in range(101):
+        #time.sleep(0.1)
+        st_progress_bar.progress(i)
+
 # url link is used manually here as for now
 try:
     url = st.text_input("Ini Teks URL: ")
     r = re.search(r"i\.(\d+)\.(\d+)", url)
-    shop_id, item_id = r[1], r[2]
+    shop_id, item_id = r[1], r[2]      
     
-  
-
-    my_bar = st.progress(0)
-
-    for percent_complete in range(100):
-        time.sleep(0.1)
-        my_bar.progress(percent_complete + 1)
-        
-        
+    threading.Thread(target=progress, args=()).start()
+    
     ratings_url = "https://shopee.co.id/api/v2/item/get_ratings?filter=0&flag=1&itemid={item_id}&limit=20&offset={offset}&shopid={shop_id}&type=0"
     offset = 0
     d = {"username": [], "userid": [], "rating": [], "comment": [], "ctime": []}
