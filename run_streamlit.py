@@ -8,7 +8,7 @@ import seaborn as sns
 import pickle
 import nltk
 import csv
-import streamlit
+import streamlit as st
 
 from collections import OrderedDict
 from nltk.tokenize import RegexpTokenizer
