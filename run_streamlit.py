@@ -31,8 +31,10 @@ try:
     url = st.text_input("Ini Teks URL: ")
     r = re.search(r"i\.(\d+)\.(\d+)", url)
     shop_id, item_id = r[1], r[2]
-
-
+    
+    for i in range (101):
+        st.progress(i)
+        
     ratings_url = "https://shopee.co.id/api/v2/item/get_ratings?filter=0&flag=1&itemid={item_id}&limit=20&offset={offset}&shopid={shop_id}&type=0"
     offset = 0
     d = {"username": [], "userid": [], "rating": [], "comment": [], "ctime": []}
