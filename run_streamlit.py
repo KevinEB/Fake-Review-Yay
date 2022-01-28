@@ -32,6 +32,7 @@ st_progress_bar = st.progress(0)
 
 def progress():
     global st_progress_bar
+    print("progress")
     for i in range(101):
         #time.sleep(0.1)
         st_progress_bar.progress(i)
