@@ -147,3 +147,4 @@ try:
     ax1.axis('equal')
     st.pyplot(fig1)
 except:
+    print("Owner Kevin")
