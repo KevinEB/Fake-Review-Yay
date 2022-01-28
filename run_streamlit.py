@@ -28,7 +28,7 @@ def main():
 
 main()
 
-st_progress_bar = st.progress()
+st_progress_bar = st.progress(0)
 
 def progress():
     global st_progress_bar
