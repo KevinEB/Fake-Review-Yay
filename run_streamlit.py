@@ -148,6 +148,6 @@ try:
                 autopct='%1.1f%%', shadow=True, startangle=140)
         ax1.axis('equal')
         st.pyplot(fig1)
-   st.success("AKhirnya")
- except:
-   print("Owner Kevin")
+    st.success("AKhirnya")
+except:
+  print("Owner Kevin")
