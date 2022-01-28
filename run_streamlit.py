@@ -32,9 +32,13 @@ try:
     r = re.search(r"i\.(\d+)\.(\d+)", url)
     shop_id, item_id = r[1], r[2]
     
-    st_progress_bar = st.progress(0)
-    for i in range (101):
-        st_progress_bar.progress(i)
+  
+
+    my_bar = st.progress(0)
+
+    for percent_complete in range(100):
+        time.sleep(0.1)
+        my_bar.progress(percent_complete + 1)
         
         
     ratings_url = "https://shopee.co.id/api/v2/item/get_ratings?filter=0&flag=1&itemid={item_id}&limit=20&offset={offset}&shopid={shop_id}&type=0"
