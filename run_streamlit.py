@@ -9,6 +9,10 @@ import pickle
 import nltk
 import csv
 
+nltk.download('wordnet')
+nltk.download('punkt')
+nltk.download('all-corpora')
+
 from collections import OrderedDict
 from nltk.tokenize import RegexpTokenizer
 from collections import OrderedDict
